@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'intranet' => [
+        'api_key' => env('INTRANET_API_KEY'),
+        'api_url' => env('INTRANET_API_URL'),
+    ],
+
+
+
 ];

@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\ScanController;
 
 /*
 |--------------------------------------------------------------------------
@@ -12,14 +13,9 @@ use App\Http\Controllers\AttendanceController;
 | TANPA AUTH
 */
 
-// 1. FORM ABSENSI (hasil scan QR)
-Route::get('/attendance/{token}', [AttendanceController::class, 'showForm'])
-    ->name('attendance.form');
+Route::get('/', function () {
+    return view('welcome');
+});
 
-// 2. SUBMIT ABSENSI (AJAX / FETCH)
-Route::post('/attendance/store', [AttendanceController::class, 'store'])
-    ->name('attendance.store');
-
-// 3. HALAMAN SUKSES
-Route::get('/attendance/success', [AttendanceController::class, 'success'])
-    ->name('attendance.success');
+Route::get('/scan/{token}', [ScanController::class, 'form']);
+Route::post('/scan/{token}', [ScanController::class, 'submit']);
