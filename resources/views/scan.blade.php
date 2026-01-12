@@ -100,7 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const formData = new FormData(e.target);
 
-        const response = await fetch('https://monday-upkd.plnnusantarapower.co.id/api/attendance/submit', {
+        const response = await fetch('http://monday-upkd.plnnusantarapower.co.id/api/attendance/submit', {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
