@@ -13,6 +13,11 @@
             <span></span>
         </div>
 
+        <div id="success-message"
+             class="hidden bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+            <span></span>
+        </div>
+
         <form id="attendance-form" class="space-y-4">
             @csrf
 
@@ -20,34 +25,35 @@
             <input type="hidden" name="signature" id="signature-data">
 
             <div>
-                <label>Nama</label>
+                <label class="block mb-2 font-medium">Nama</label>
                 <input type="text" name="name" required class="w-full border rounded px-3 py-2">
             </div>
 
             <div>
-                <label>Jabatan</label>
+                <label class="block mb-2 font-medium">Jabatan</label>
                 <input type="text" name="position" required class="w-full border rounded px-3 py-2">
             </div>
 
             <div>
-                <label>Divisi</label>
+                <label class="block mb-2 font-medium">Divisi</label>
                 <input type="text" name="division" required class="w-full border rounded px-3 py-2">
             </div>
 
             <!-- SIGNATURE -->
             <div>
-                <label>Tanda Tangan</label>
+                <label class="block mb-2 font-medium">Tanda Tangan</label>
                 <div class="border rounded p-2">
-                    <canvas id="signature-pad" class="w-full h-48 border rounded"></canvas>
+                    <canvas id="signature-pad" class="w-full h-48 border rounded bg-white"></canvas>
 
                     <div class="flex justify-between mt-2">
-                        <button type="button" id="clear" class="text-red-600">Hapus</button>
-                        <button type="button" id="undo" class="text-blue-600">Undo</button>
+                        <button type="button" id="clear" class="text-red-600 px-4 py-2">Hapus</button>
+                        <button type="button" id="undo" class="text-blue-600 px-4 py-2">Undo</button>
                     </div>
                 </div>
             </div>
 
             <button type="submit"
+                    id="submit-btn"
                     class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
                 Kirim Absensi
             </button>
@@ -90,56 +96,105 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('attendance-form').addEventListener('submit', async e => {
         e.preventDefault();
 
+        // Reset messages
+        hideError();
+        hideSuccess();
+
+        // Validate signature
         if (signaturePad.isEmpty()) {
             showError('Tanda tangan wajib diisi');
             return;
         }
 
-        document.getElementById('signature-data').value =
-            signaturePad.toDataURL('image/png');
+        // Disable button saat submit
+        const submitBtn = document.getElementById('submit-btn');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Mengirim...';
 
-        const formData = new FormData(e.target);
+        try {
+            document.getElementById('signature-data').value = signaturePad.toDataURL('image/png');
 
-        const response = await fetch('{{ route("scan.submit", ["token" => $token]) }}', {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
-            },
-            body: formData
-        });
+            const formData = new FormData(e.target);
 
-        const result = await response.json();
+            const response = await fetch('{{ route("scan.submit", ["token" => $token]) }}', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+                },
+                body: formData
+            });
 
-        if (response.ok && result.success) {
-            alert('Absensi berhasil disimpan');
-            setTimeout(() => {
-                window.location.href = '{{ url("/") }}';
-            }, 1000);
-        } else {
-            // Handle validation errors
-            let errorMessage = 'Terjadi kesalahan saat menyimpan absensi';
-            
-            if (result.message) {
-                errorMessage = result.message;
-            } else if (result.errors) {
-                // Laravel validation errors
-                const errorMessages = Object.values(result.errors).flat();
-                errorMessage = errorMessages.join(', ');
-            } else if (result.error_type === 'invalid_token') {
-                errorMessage = result.message || 'Token tidak valid atau sudah digunakan';
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                showSuccess(result.message || 'Absensi berhasil disimpan');
+                
+                // Reset form
+                e.target.reset();
+                signaturePad.clear();
+                
+                // Redirect setelah 2 detik
+                setTimeout(() => {
+                    window.location.href = '{{ url("/") }}';
+                }, 2000);
+            } else {
+                // Handle errors
+                let errorMessage = 'Terjadi kesalahan saat menyimpan absensi';
+                
+                if (result.error_type === 'already_attended') {
+                    errorMessage = result.message || 'Anda sudah melakukan absensi hari ini';
+                } else if (result.error_type === 'token_expired') {
+                    errorMessage = result.message || 'Token sudah tidak valid';
+                } else if (result.message) {
+                    errorMessage = result.message;
+                } else if (result.errors) {
+                    // Laravel validation errors
+                    const errorMessages = Object.values(result.errors).flat();
+                    errorMessage = errorMessages.join(', ');
+                }
+                
+                showError(errorMessage);
+                console.error('Error response:', result);
             }
-            
-            showError(errorMessage);
-            console.error('Error response:', result);
-        }
 
+        } catch (error) {
+            console.error('Network error:', error);
+            showError('Terjadi kesalahan jaringan. Silakan coba lagi.');
+        } finally {
+            // Re-enable button
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
     });
 
     function showError(msg) {
         const box = document.getElementById('error-message');
-        box.querySelector('span').innerText = msg;
+        box.querySelector('span').textContent = msg;
         box.classList.remove('hidden');
+        
+        // Scroll to top untuk melihat error
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function hideError() {
+        const box = document.getElementById('error-message');
+        box.classList.add('hidden');
+    }
+
+    function showSuccess(msg) {
+        const box = document.getElementById('success-message');
+        box.querySelector('span').textContent = msg;
+        box.classList.remove('hidden');
+        
+        // Scroll to top untuk melihat success
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function hideSuccess() {
+        const box = document.getElementById('success-message');
+        box.classList.add('hidden');
     }
 });
 </script>
