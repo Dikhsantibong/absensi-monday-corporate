@@ -111,13 +111,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const result = await response.json();
 
-        if (result.success) {
+        if (response.ok && result.success) {
             alert('Absensi berhasil disimpan');
             setTimeout(() => {
                 window.location.href = '{{ url("/") }}';
             }, 1000);
         } else {
-            showError(result.message || 'Terjadi kesalahan saat menyimpan absensi');
+            // Handle validation errors
+            let errorMessage = 'Terjadi kesalahan saat menyimpan absensi';
+            
+            if (result.message) {
+                errorMessage = result.message;
+            } else if (result.errors) {
+                // Laravel validation errors
+                const errorMessages = Object.values(result.errors).flat();
+                errorMessage = errorMessages.join(', ');
+            } else if (result.error_type === 'invalid_token') {
+                errorMessage = result.message || 'Token tidak valid atau sudah digunakan';
+            }
+            
+            showError(errorMessage);
+            console.error('Error response:', result);
         }
 
     });
