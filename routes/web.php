@@ -17,5 +17,4 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('/scan/{token}', [ScanController::class, 'form']);
-Route::post('/scan/{token}', [ScanController::class, 'submit']);
+Route::get('/absen/{token}', [AttendanceController::class,'form']);

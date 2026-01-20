@@ -114,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (result.success) {
     alert('Absensi berhasil, Anda akan diarahkan ke Monday UPKD');
     setTimeout(() => {
-        window.location.href = 'https://monday-upkd.plnnusantarapower.co.id';
+        window.location.href = 'http://monday-upkd.plnnusantarapower.co.id';
     }, 1000);
 }
 
