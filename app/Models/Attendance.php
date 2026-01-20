@@ -6,12 +6,19 @@ use Illuminate\Database\Eloquent\Model;
 
 class Attendance extends Model
 {
+    protected $table = 'attendance';
+
     protected $fillable = [
-        'token',
         'name',
-        'position',
         'division',
-        'signature'
+        'position',
+        'token',
+        'time',
+        'signature',
+        'unit_source',
+        'is_backdate',
+        'backdate_reason',
+        'source_ip',
+        'user_agent'
     ];
 }
-
