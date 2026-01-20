@@ -15,7 +15,7 @@ class ScanController extends Controller
         // Jika token tidak ada, buat otomatis (dari QR code web intranet)
         $attendanceToken = AttendanceToken::where('token', $token)->first();
 
-        if (! $attendanceToken) {
+        if (!$attendanceToken) {
             // Auto-create token jika belum ada (dari QR code web intranet)
             $attendanceToken = AttendanceToken::create([
                 'token' => $token,
@@ -24,10 +24,12 @@ class ScanController extends Controller
             ]);
         }
 
-        if ($attendanceToken->used_at) {
-            abort(410, 'Token sudah digunakan pada '.$attendanceToken->used_at->format('d/m/Y H:i:s'));
-        }
+        // REMOVED: Token sudah digunakan check - biarkan digunakan berkali-kali
+        // if ($attendanceToken->used_at) {
+        //     abort(410, 'Token sudah digunakan pada '.$attendanceToken->used_at->format('d/m/Y H:i:s'));
+        // }
 
+        // Cek hanya expiry
         if ($attendanceToken->expires_at && $attendanceToken->expires_at < now()) {
             abort(410, 'Token sudah expired pada '.$attendanceToken->expires_at->format('d/m/Y H:i:s'));
         }
@@ -52,13 +54,10 @@ class ScanController extends Controller
             ], 422);
         }
 
-        // Cek dan lock token dengan detail untuk error message yang lebih informatif
-        // Jika token tidak ada, buat otomatis (dari web intranet)
-        $attendanceToken = AttendanceToken::where('token', $token)
-            ->lockForUpdate()
-            ->first();
+        // Cek token
+        $attendanceToken = AttendanceToken::where('token', $token)->first();
 
-        if (! $attendanceToken) {
+        if (!$attendanceToken) {
             // Auto-create token jika belum ada (dari QR code web intranet)
             $attendanceToken = AttendanceToken::create([
                 'token' => $token,
@@ -68,20 +67,37 @@ class ScanController extends Controller
             ]);
         }
 
-        // Validasi token status
-        if ($attendanceToken->used_at) {
-            return response()->json([
-                'success' => false,
-                'error_type' => 'token_already_used',
-                'message' => 'Token sudah digunakan pada '.$attendanceToken->used_at->format('d/m/Y H:i:s'),
-            ], 422);
-        }
+        // REMOVED: Token sudah digunakan check
+        // if ($attendanceToken->used_at) {
+        //     return response()->json([
+        //         'success' => false,
+        //         'error_type' => 'token_already_used',
+        //         'message' => 'Token sudah digunakan pada '.$attendanceToken->used_at->format('d/m/Y H:i:s'),
+        //     ], 422);
+        // }
 
+        // Cek hanya expiry
         if ($attendanceToken->expires_at && $attendanceToken->expires_at < now()) {
             return response()->json([
                 'success' => false,
                 'error_type' => 'token_expired',
                 'message' => 'Token sudah expired pada '.$attendanceToken->expires_at->format('d/m/Y H:i:s'),
+            ], 422);
+        }
+
+        // Cek duplikasi absensi untuk orang yang sama di hari yang sama
+        $todayStart = now()->startOfDay();
+        $todayEnd = now()->endOfDay();
+        
+        $existingAttendance = Attendance::where('name', $request->name)
+            ->whereBetween('time', [$todayStart, $todayEnd])
+            ->first();
+
+        if ($existingAttendance) {
+            return response()->json([
+                'success' => false,
+                'error_type' => 'already_attended',
+                'message' => 'Anda sudah melakukan absensi hari ini pada ' . $existingAttendance->time->format('H:i:s'),
             ], 422);
         }
 
@@ -95,12 +111,13 @@ class ScanController extends Controller
                     'time' => now(),
                     'signature' => $request->signature,
                     'unit_source' => $attendanceToken->unit_source,
-                    'is_backdate' => $attendanceToken->is_backdate,
+                    'is_backdate' => $attendanceToken->is_backdate ?? false,
                     'backdate_reason' => $attendanceToken->backdate_data,
                     'source_ip' => request()->ip(),
                     'user_agent' => request()->userAgent(),
                 ]);
 
+                // Update used_at untuk tracking (tapi tidak digunakan untuk validasi)
                 $attendanceToken->update([
                     'used_at' => now(),
                 ]);
