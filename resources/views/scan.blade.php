@@ -100,11 +100,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const formData = new FormData(e.target);
 
-        const response = await fetch('http://monday-upkd.plnnusantarapower.co.id/api/attendance/submit', {
+        const response = await fetch('{{ route("scan.submit", ["token" => $token]) }}', {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
-                'X-API-KEY': '{{ config("services.intranet.api_key") }}'
+                'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
             },
             body: formData
         });
@@ -112,11 +112,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const result = await response.json();
 
         if (result.success) {
-    alert('Absensi berhasil, Anda akan diarahkan ke Monday UPKD');
-    setTimeout(() => {
-        window.location.href = 'http://monday-upkd.plnnusantarapower.co.id';
-    }, 1000);
-}
+            alert('Absensi berhasil disimpan');
+            setTimeout(() => {
+                window.location.href = '{{ url("/") }}';
+            }, 1000);
+        } else {
+            showError(result.message || 'Terjadi kesalahan saat menyimpan absensi');
+        }
 
     });
 

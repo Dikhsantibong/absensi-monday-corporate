@@ -1,8 +1,7 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\ScanController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -17,5 +16,5 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('/scan/{token}', [ScanController::class, 'form']);
-Route::post('/scan/{token}', [ScanController::class, 'submit']);
+Route::get('/scan/{token}', [ScanController::class, 'form'])->name('scan.form');
+Route::post('/scan/{token}', [ScanController::class, 'submit'])->name('scan.submit');
