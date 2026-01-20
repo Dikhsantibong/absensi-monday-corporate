@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 class AttendanceController extends Controller
 {
-    public function show($token)
+    public function form($token)
     {
         $attendanceToken = AttendanceToken::where('token', $token)
             ->where('expires_at', '>=', now())
@@ -97,8 +97,21 @@ class AttendanceController extends Controller
             $query->where('unit_source', $request->unit_source);
         }
 
+        // Filter by name (search)
+        if ($request->has('name')) {
+            $query->where('name', 'like', '%'.$request->name.'%');
+        }
+
+        // Filter by division
+        if ($request->has('division')) {
+            $query->where('division', 'like', '%'.$request->division.'%');
+        }
+
         // Pagination
         $perPage = $request->get('per_page', 15);
+        $maxPerPage = 100; // Limit maksimal per page
+        $perPage = min($perPage, $maxPerPage);
+
         $attendances = $query->paginate($perPage);
 
         return response()->json([
@@ -109,6 +122,8 @@ class AttendanceController extends Controller
                 'last_page' => $attendances->lastPage(),
                 'per_page' => $attendances->perPage(),
                 'total' => $attendances->total(),
+                'from' => $attendances->firstItem(),
+                'to' => $attendances->lastItem(),
             ],
         ]);
     }
