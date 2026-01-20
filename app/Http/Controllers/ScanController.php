@@ -9,8 +9,11 @@ use Illuminate\Support\Facades\DB;
 
 class ScanController extends Controller
 {
-    public function form($token)
+    public function form($token, Request $request)
     {
+        // **AMBIL UNIT_SOURCE DARI URL**
+        $unitSource = $request->query('unit', 'mysql');
+        
         // Validasi token sebelum menampilkan form
         // Jika token tidak ada, buat otomatis (dari QR code web intranet)
         $attendanceToken = AttendanceToken::where('token', $token)->first();
@@ -20,21 +23,17 @@ class ScanController extends Controller
             $attendanceToken = AttendanceToken::create([
                 'token' => $token,
                 'expires_at' => now()->addDays(1), // Default expire 1 hari
+                'unit_source' => $unitSource, // **SIMPAN UNIT_SOURCE DARI URL**
                 'is_backdate' => false,
             ]);
         }
-
-        // REMOVED: Token sudah digunakan check - biarkan digunakan berkali-kali
-        // if ($attendanceToken->used_at) {
-        //     abort(410, 'Token sudah digunakan pada '.$attendanceToken->used_at->format('d/m/Y H:i:s'));
-        // }
 
         // Cek hanya expiry
         if ($attendanceToken->expires_at && $attendanceToken->expires_at < now()) {
             abort(410, 'Token sudah expired pada '.$attendanceToken->expires_at->format('d/m/Y H:i:s'));
         }
 
-        return view('scan', compact('token'));
+        return view('scan', compact('token', 'unitSource'));
     }
 
     public function submit(Request $request, $token): \Illuminate\Http\JsonResponse
@@ -45,6 +44,7 @@ class ScanController extends Controller
                 'division' => 'required|string|max:255',
                 'position' => 'required|string|max:255',
                 'signature' => 'required|string',
+                'unit_source' => 'required|string', // **VALIDASI UNIT_SOURCE**
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -54,6 +54,9 @@ class ScanController extends Controller
             ], 422);
         }
 
+        // **AMBIL UNIT_SOURCE DARI REQUEST**
+        $unitSource = $request->input('unit_source');
+
         // Cek token
         $attendanceToken = AttendanceToken::where('token', $token)->first();
 
@@ -61,20 +64,11 @@ class ScanController extends Controller
             // Auto-create token jika belum ada (dari QR code web intranet)
             $attendanceToken = AttendanceToken::create([
                 'token' => $token,
-                'expires_at' => now()->addDays(1), // Default expire 1 hari
-                'unit_source' => $request->get('unit_source'),
+                'expires_at' => now()->addDays(1),
+                'unit_source' => $unitSource, // **GUNAKAN UNIT_SOURCE DARI REQUEST**
                 'is_backdate' => false,
             ]);
         }
-
-        // REMOVED: Token sudah digunakan check
-        // if ($attendanceToken->used_at) {
-        //     return response()->json([
-        //         'success' => false,
-        //         'error_type' => 'token_already_used',
-        //         'message' => 'Token sudah digunakan pada '.$attendanceToken->used_at->format('d/m/Y H:i:s'),
-        //     ], 422);
-        // }
 
         // Cek hanya expiry
         if ($attendanceToken->expires_at && $attendanceToken->expires_at < now()) {
@@ -85,12 +79,13 @@ class ScanController extends Controller
             ], 422);
         }
 
-        // Cek duplikasi absensi untuk orang yang sama di hari yang sama
+        // Cek duplikasi absensi untuk orang yang sama di hari yang sama **DI UNIT YANG SAMA**
         $todayStart = now()->startOfDay();
         $todayEnd = now()->endOfDay();
         
         $existingAttendance = Attendance::where('name', $request->name)
             ->whereBetween('time', [$todayStart, $todayEnd])
+            ->where('unit_source', $unitSource) // **FILTER BY UNIT_SOURCE**
             ->first();
 
         if ($existingAttendance) {
@@ -102,7 +97,7 @@ class ScanController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($request, $token, $attendanceToken) {
+            DB::transaction(function () use ($request, $token, $attendanceToken, $unitSource) {
                 Attendance::create([
                     'name' => $request->name,
                     'division' => $request->division,
@@ -110,14 +105,14 @@ class ScanController extends Controller
                     'token' => $token,
                     'time' => now(),
                     'signature' => $request->signature,
-                    'unit_source' => $attendanceToken->unit_source,
+                    'unit_source' => $unitSource, // **SIMPAN UNIT_SOURCE**
                     'is_backdate' => $attendanceToken->is_backdate ?? false,
                     'backdate_reason' => $attendanceToken->backdate_data,
                     'source_ip' => request()->ip(),
                     'user_agent' => request()->userAgent(),
                 ]);
 
-                // Update used_at untuk tracking (tapi tidak digunakan untuk validasi)
+                // Update used_at untuk tracking
                 $attendanceToken->update([
                     'used_at' => now(),
                 ]);
