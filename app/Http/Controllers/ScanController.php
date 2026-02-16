@@ -176,6 +176,8 @@ class ScanController extends Controller
             ->where('is_weekly', $isWeekly) // Cek duplikat juga berdasarkan weekly
             ->first();
 
+        /*
+        DIKOMENTARI SESUAI PERMINTAAN USER: "hilangkan kondisi seperti ini"
         if ($existingAttendance) {
             $weeklyText = $isWeekly ? ' weekly' : '';
             $logs[] = "Attendance duplication found for {$request->name}";
@@ -186,6 +188,7 @@ class ScanController extends Controller
                 'logs' => $logs
             ], 422);
         }
+        */
 
         // Simpan Absensi
         try {

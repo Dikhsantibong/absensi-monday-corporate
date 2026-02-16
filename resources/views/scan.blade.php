@@ -148,6 +148,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             console.log(`[FRONTEND] Fetching URL: ${baseUrl}?${queryParams}`);
 
+            // **LOG FORM DATA CONTENT**
+            console.group("%c[FRONTEND] Form Data Being Sent", "color: orange; font-weight: bold;");
+            for (let [key, value] of formData.entries()) {
+                if (key === 'signature' && typeof value === 'string' && value.length > 50) {
+                    console.log(`${key}: ${value.substring(0, 50)}... [truncated]`);
+                } else {
+                    console.log(`${key}: ${value}`);
+                }
+            }
+            console.groupEnd();
+
             const response = await fetch(`${baseUrl}?${queryParams}`, {
                 method: 'POST',
                 headers: {
