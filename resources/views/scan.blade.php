@@ -123,9 +123,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // **Retrieve query parameters directly from the browser URL for robustness**
             const urlParams = new URLSearchParams(window.location.search);
             
+            console.log("%c[FRONTEND] Starting Submission Process", "color: blue; font-weight: bold;");
+            console.log("[FRONTEND] Raw URL Search:", window.location.search);
+            
             // Prefer URL parameters, fallback to server-rendered values
             const weeklyParam = urlParams.get('weekly') || urlParams.get('is_weekly') || '{{ $isWeekly }}';
             const unitParam = urlParams.get('unit') || urlParams.get('unit_source') || '{{ $unitSource }}';
+
+            console.log(`[FRONTEND] Detected Params -> Weekly: ${weeklyParam}, Unit: ${unitParam}`);
 
             // Convert to integer (0 or 1) explicitly if possible, or keep string
             // Handle 'weekly=1', 'weekly=true' etc.
@@ -133,11 +138,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isWeeklyVal === 'true' || isWeeklyVal === '1') isWeeklyVal = '1';
             else if (isWeeklyVal === 'false' || isWeeklyVal === '0') isWeeklyVal = '0';
 
+            console.log(`[FRONTEND] Processed isWeeklyVal: ${isWeeklyVal}`);
+
             const baseUrl = '{{ route("scan.submit", ["token" => $token]) }}';
             const queryParams = new URLSearchParams({
                 unit_source: unitParam,
                 is_weekly: isWeeklyVal
             }).toString();
+
+            console.log(`[FRONTEND] Fetching URL: ${baseUrl}?${queryParams}`);
 
             const response = await fetch(`${baseUrl}?${queryParams}`, {
                 method: 'POST',
@@ -149,19 +158,27 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             const result = await response.json();
+            
+            if (result.logs) {
+                console.group("%c[BACKEND LOGS]", "color: purple; font-weight: bold;");
+                result.logs.forEach(log => console.log(log));
+                console.groupEnd();
+            }
 
             if (response.ok && result.success) {
                 showSuccess(result.message || 'Absensi berhasil disimpan');
+                console.log("%c[FRONTEND] Success!", "color: green; font-weight: bold;", result);
                 
                 // Reset form
                 e.target.reset();
                 signaturePad.clear();
                 
-                // Redirect setelah 2 detik
+                // Redirect setelah 5 detik (diperlama agar user sempat baca log console)
                 setTimeout(() => {
                     window.location.href = '{{ url("/") }}';
-                }, 2000);
+                }, 5000);
             } else {
+                console.error("%c[FRONTEND] Error Response:", "color: red; font-weight: bold;", result);
                 // Handle errors
                 let errorMessage = 'Terjadi kesalahan saat menyimpan absensi';
                 

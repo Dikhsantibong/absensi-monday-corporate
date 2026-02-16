@@ -64,6 +64,9 @@ class ScanController extends Controller
 
     public function submit(Request $request, $token): \Illuminate\Http\JsonResponse
     {
+        $logs = [];
+        $logs[] = "Starting submit process for token: {$token}";
+
         // 1. Validasi Input
         try {
             $validated = $request->validate([
@@ -75,11 +78,14 @@ class ScanController extends Controller
                 // Terima string '0','1', atau integer
                 'is_weekly' => 'nullable', 
             ]);
+            $logs[] = "Validation successful";
         } catch (\Illuminate\Validation\ValidationException $e) {
+            $logs[] = "Validation failed: " . json_encode($e->errors());
             return response()->json([
                 'success' => false,
                 'message' => 'Validasi gagal',
                 'errors' => $e->errors(),
+                'logs' => $logs
             ], 422);
         }
 
@@ -87,31 +93,40 @@ class ScanController extends Controller
         
         // Ambil unit
         $unitSource = $request->input('unit_source') ?? 'mysql';
+        $logs[] = "Unit Source detected: {$unitSource}";
 
         // Tentukan is_weekly (Default 0)
         $isWeekly = 0;
 
         // Cek input
         $inputWeekly = $request->input('is_weekly');
+        $logs[] = "Raw is_weekly input: " . json_encode($inputWeekly);
+
         if ($inputWeekly == '1' || $inputWeekly == 1 || $inputWeekly == 'true') {
             $isWeekly = 1;
+            $logs[] = "is_weekly set to 1 via INPUT";
         }
 
         // FORCE CHECK: Jika token mengandung kata 'WEEKLY', PASTI 1
         if (str_contains($token, 'WEEKLY')) {
             $isWeekly = 1;
+            $logs[] = "is_weekly set to 1 via TOKEN keyword override";
         }
 
-        // Debug Log
+        $logs[] = "Final is_weekly value: {$isWeekly}";
+
+        // Debug Log (Server side)
         Log::info("Submitting Attendance for {$token}", [
             'is_weekly_result' => $isWeekly,
-            'token_contains_weekly' => str_contains($token, 'WEEKLY')
+            'token_contains_weekly' => str_contains($token, 'WEEKLY'),
+            'logs' => $logs
         ]);
 
         // 3. Proses Database
         $attendanceToken = AttendanceToken::where('token', $token)->first();
 
         if (!$attendanceToken) {
+            $logs[] = "Token not found, creating new token";
             $attendanceToken = AttendanceToken::create([
                 'token' => $token,
                 'expires_at' => now()->addDays(1),
@@ -121,10 +136,16 @@ class ScanController extends Controller
             ]);
         } else {
             // Update token existing dengan status yang benar
-            $attendanceToken->update([
-                'is_weekly' => $isWeekly,
-                'unit_source' => $unitSource
-            ]);
+            $logs[] = "Token found. Existing is_weekly: {$attendanceToken->is_weekly}";
+            if ($attendanceToken->is_weekly != $isWeekly) {
+                 $attendanceToken->update([
+                    'is_weekly' => $isWeekly,
+                    'unit_source' => $unitSource
+                ]);
+                $logs[] = "Updated existing token is_weekly to {$isWeekly}";
+            } else {
+                $logs[] = "Existing token is_weekly matches request";
+            }
         }
 
         // Cek Expiry
@@ -134,13 +155,16 @@ class ScanController extends Controller
                 : $attendanceToken->expires_at;
             
             if ($expiryDate < now()) {
+                $logs[] = "Token expired at " . $expiryDate->format('d/m/Y H:i:s');
                 return response()->json([
                     'success' => false,
                     'error_type' => 'token_expired',
                     'message' => 'Token sudah expired pada ' . $expiryDate->format('d/m/Y H:i:s'),
+                    'logs' => $logs
                 ], 422);
             }
         }
+        $logs[] = "Token validated successfully";
 
         // Cek Duplikasi
         $todayStart = now()->startOfDay();
@@ -154,16 +178,20 @@ class ScanController extends Controller
 
         if ($existingAttendance) {
             $weeklyText = $isWeekly ? ' weekly' : '';
+            $logs[] = "Attendance duplication found for {$request->name}";
             return response()->json([
                 'success' => false,
                 'error_type' => 'already_attended',
                 'message' => 'Anda sudah melakukan absensi' . $weeklyText . ' hari ini pada ' . $existingAttendance->time->format('H:i:s'),
+                'logs' => $logs
             ], 422);
         }
 
         // Simpan Absensi
         try {
-            DB::transaction(function () use ($request, $token, $attendanceToken, $unitSource, $isWeekly) {
+            $logs[] = "Attempting to create Attendance record";
+            
+            DB::transaction(function () use ($request, $token, $attendanceToken, $unitSource, $isWeekly, &$logs) {
                 Attendance::create([
                     'name' => $request->name,
                     'division' => $request->division,
@@ -179,21 +207,29 @@ class ScanController extends Controller
                     'source_ip' => request()->ip(),
                     'user_agent' => request()->userAgent(),
                 ]);
-
-                $attendanceToken->update([
-                    'used_at' => now(),
-                ]);
+                // Log inside transaction not easily retrievable unless using reference variable
+                // But we are using &$logs in closure use statement above logic
+                $logs[] = "Attendance record created successfully inside transaction";
             });
+            $logs[] = "Transaction committed successfully";
+
+            $attendanceToken->update([
+                'used_at' => now(),
+            ]);
+            $logs[] = "Token marked as used";
 
             $weeklyText = $isWeekly ? ' weekly' : '';
             return response()->json([
                 'success' => true,
                 'message' => 'Absensi' . $weeklyText . ' berhasil disimpan',
+                'logs' => $logs
             ]);
         } catch (\Exception $e) {
+            $logs[] = "Exception during creation: " . $e->getMessage();
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal menyimpan absensi: '.$e->getMessage(),
+                'logs' => $logs
             ], 500);
         }
     }
