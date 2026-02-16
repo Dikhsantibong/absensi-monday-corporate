@@ -33,8 +33,14 @@ class ScanController extends Controller
         }
 
         // Cek hanya expiry
-        if ($attendanceToken->expires_at && $attendanceToken->expires_at < now()) {
-            abort(410, 'Token sudah expired pada '.$attendanceToken->expires_at->format('d/m/Y H:i:s'));
+        if ($attendanceToken->expires_at) {
+            $expiryDate = is_string($attendanceToken->expires_at) 
+                ? \Carbon\Carbon::parse($attendanceToken->expires_at) 
+                : $attendanceToken->expires_at;
+            
+            if ($expiryDate < now()) {
+                abort(410, 'Token sudah expired pada ' . $expiryDate->format('d/m/Y H:i:s'));
+            }
         }
 
         return view('scan', compact('token', 'unitSource', 'isWeekly'));
@@ -117,7 +123,7 @@ class ScanController extends Controller
                     'unit_source' => $unitSource,
                     'is_weekly' => $isWeekly, // Gunakan nilai yang sudah di-cast
                     'is_backdate' => $attendanceToken->is_backdate ?? false,
-                    'backdate_reason' => $attendanceToken->backdate_data,
+                    'backdate_reason' => $attendanceToken->backdate_reason,
                     'source_ip' => request()->ip(),
                     'user_agent' => request()->userAgent(),
                 ]);
