@@ -84,12 +84,18 @@ class ScanController extends Controller
         }
 
         // Cek hanya expiry
-        if ($attendanceToken->expires_at && $attendanceToken->expires_at < now()) {
-            return response()->json([
-                'success' => false,
-                'error_type' => 'token_expired',
-                'message' => 'Token sudah expired pada '.$attendanceToken->expires_at->format('d/m/Y H:i:s'),
-            ], 422);
+        if ($attendanceToken->expires_at) {
+            $expiryDate = is_string($attendanceToken->expires_at) 
+                ? \Carbon\Carbon::parse($attendanceToken->expires_at) 
+                : $attendanceToken->expires_at;
+            
+            if ($expiryDate < now()) {
+                return response()->json([
+                    'success' => false,
+                    'error_type' => 'token_expired',
+                    'message' => 'Token sudah expired pada '.$expiryDate->format('d/m/Y H:i:s'),
+                ], 422);
+            }
         }
 
         // Cek duplikasi absensi untuk orang yang sama di hari yang sama **DI UNIT YANG SAMA**
