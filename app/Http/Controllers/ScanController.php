@@ -94,6 +94,12 @@ class ScanController extends Controller
                 'is_weekly' => $isWeekly, // Gunakan nilai yang sudah di-cast
                 'is_backdate' => false,
             ]);
+        } else {
+             // **SYNC EXISTING TOKEN WITH REQUEST**
+             $attendanceToken->update([
+                 'is_weekly' => $isWeekly,
+                 'unit_source' => $unitSource,
+             ]);
         }
 
         // Cek hanya expiry
@@ -153,10 +159,17 @@ class ScanController extends Controller
                 ]);
             });
 
+            // **FORCE WEEKLY IF TOKEN CONTAINS WEEKLY**
+            if (str_contains($token, 'WEEKLY')) {
+                $isWeekly = 1;
+            }
+
+            // Debug info in message
+            $debugInfo = " (Debug: is_weekly={$isWeekly}, token={$token})";
             $weeklyText = $isWeekly ? ' weekly' : '';
             return response()->json([
                 'success' => true,
-                'message' => 'Absensi' . $weeklyText . ' berhasil disimpan',
+                'message' => 'Absensi' . $weeklyText . ' berhasil disimpan' . $debugInfo,
             ]);
         } catch (\Exception $e) {
             return response()->json([
