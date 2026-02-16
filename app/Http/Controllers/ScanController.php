@@ -65,9 +65,12 @@ class ScanController extends Controller
             ], 422);
         }
 
-        // **KONVERSI is_weekly ke integer**
-        $unitSource = $request->input('unit_source');
-        $isWeekly = (int) $request->input('is_weekly', 0); // PENTING: Cast ke integer
+        // **AMBIL UNIT_SOURCE DAN IS_WEEKLY DENGAN FALLBACK YANG LEBIH KUAT**
+        $unitSource = $request->input('unit_source') ?? $request->query('unit') ?? 'mysql';
+        
+        // Cek 'is_weekly' dari input/query, jika tidak ada cek 'weekly' dari input/query
+        $rawWeekly = $request->input('is_weekly') ?? $request->query('is_weekly') ?? $request->input('weekly') ?? $request->query('weekly');
+        $isWeekly = (int) ($rawWeekly ?? 0); // Pastikan integer
 
         // Cek token
         $attendanceToken = AttendanceToken::where('token', $token)->first();

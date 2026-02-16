@@ -120,7 +120,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const formData = new FormData(e.target);
 
-            const response = await fetch('{{ route("scan.submit", ["token" => $token]) }}', {
+            // Append query parameters to ensure they are passed
+            const baseUrl = '{{ route("scan.submit", ["token" => $token]) }}';
+            const queryParams = new URLSearchParams({
+                unit_source: '{{ $unitSource }}',
+                is_weekly: '{{ $isWeekly }}'
+            }).toString();
+
+            const response = await fetch(`${baseUrl}?${queryParams}`, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
