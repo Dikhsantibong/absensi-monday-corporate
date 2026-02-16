@@ -17,6 +17,11 @@ class ScanController extends Controller
         // **AMBIL WEEKLY PARAMETER DARI URL DAN KONVERSI KE INTEGER**
         $isWeekly = (int) $request->query('weekly', 0);
         
+        // **FALLBACK: JIKA TOKEN MENGANDUNG KATA 'WEEKLY', PAKSA WEEKLY=1**
+        if (str_contains($token, 'WEEKLY')) {
+            $isWeekly = 1;
+        }
+        
         // Validasi token sebelum menampilkan form
         // Jika token tidak ada, buat otomatis (dari QR code web intranet)
         $attendanceToken = AttendanceToken::where('token', $token)->first();
@@ -71,6 +76,11 @@ class ScanController extends Controller
         // Cek 'is_weekly' dari input/query, jika tidak ada cek 'weekly' dari input/query
         $rawWeekly = $request->input('is_weekly') ?? $request->query('is_weekly') ?? $request->input('weekly') ?? $request->query('weekly');
         $isWeekly = (int) ($rawWeekly ?? 0); // Pastikan integer
+
+        // **FALLBACK: JIKA TOKEN MENGANDUNG KATA 'WEEKLY', PAKSA WEEKLY=1**
+        if (str_contains($token, 'WEEKLY')) {
+            $isWeekly = 1;
+        }
 
         // Cek token
         $attendanceToken = AttendanceToken::where('token', $token)->first();

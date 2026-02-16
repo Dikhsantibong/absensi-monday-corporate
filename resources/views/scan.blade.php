@@ -120,11 +120,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const formData = new FormData(e.target);
 
-            // Append query parameters to ensure they are passed
+            // **Retrieve query parameters directly from the browser URL for robustness**
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // Prefer URL parameters, fallback to server-rendered values
+            const weeklyParam = urlParams.get('weekly') || urlParams.get('is_weekly') || '{{ $isWeekly }}';
+            const unitParam = urlParams.get('unit') || urlParams.get('unit_source') || '{{ $unitSource }}';
+
+            // Convert to integer (0 or 1) explicitly if possible, or keep string
+            // Handle 'weekly=1', 'weekly=true' etc.
+            let isWeeklyVal = weeklyParam;
+            if (isWeeklyVal === 'true' || isWeeklyVal === '1') isWeeklyVal = '1';
+            else if (isWeeklyVal === 'false' || isWeeklyVal === '0') isWeeklyVal = '0';
+
             const baseUrl = '{{ route("scan.submit", ["token" => $token]) }}';
             const queryParams = new URLSearchParams({
-                unit_source: '{{ $unitSource }}',
-                is_weekly: '{{ $isWeekly }}'
+                unit_source: unitParam,
+                is_weekly: isWeeklyVal
             }).toString();
 
             const response = await fetch(`${baseUrl}?${queryParams}`, {
