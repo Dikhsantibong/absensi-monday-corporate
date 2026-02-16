@@ -28,16 +28,25 @@ class AttendanceController extends Controller
             'name' => 'required|string|max:255',
             'division' => 'required|string|max:255',
             'position' => 'required|string|max:255',
-            'is_weekly' => 'nullable|in:0,1', // UBAH: terima string 0 atau 1
+            'is_weekly' => 'nullable', 
             'signature' => 'required|string',
         ]);
-
+        // LOGIKA PENENTUAN IS_WEEKLY (PARANOID MODE)
+        $isWeekly = 0;
+        
+        $inputWeekly = $request->input('is_weekly');
+        if ($inputWeekly == '1' || $inputWeekly == 1 || $inputWeekly == 'true') {
+            $isWeekly = 1;
+        }
+        // FORCE CHECK TOKEN
+        if (str_contains($request->token, 'WEEKLY')) {
+            $isWeekly = 1;
+        }
         $token = AttendanceToken::where('token', $request->token)
             ->where('expires_at', '>=', now())
             ->whereNull('used_at')
             ->lockForUpdate()
             ->first();
-
         if (! $token) {
             return response()->json([
                 'success' => false,
@@ -45,27 +54,6 @@ class AttendanceController extends Controller
                 'message' => 'Token tidak valid atau sudah digunakan',
             ], 422);
         }
-
-        // **AMBIL UNIT_SOURCE DAN IS_WEEKLY DENGAN FALLBACK YANG LEBIH KUAT**
-        // Cek 'is_weekly' dari input/query, jika tidak ada cek 'weekly' dari input/query
-        $rawWeekly = $request->input('is_weekly') ?? $request->query('is_weekly') ?? $request->input('weekly') ?? $request->query('weekly');
-        $isWeekly = (int) ($rawWeekly ?? 0); // Pastikan integer
-
-        // **FALLBACK: JIKA TOKEN MENGANDUNG KATA 'WEEKLY', PAKSA WEEKLY=1**
-        if (str_contains($request->token, 'WEEKLY')) {
-            $isWeekly = 1;
-        }
-
-        // **SYNC TOKEN WITH REQUEST**
-        if ($token->is_weekly != $isWeekly) {
-            $token->update([
-                'is_weekly' => $isWeekly,
-            ]);
-        }
-        
-        // **KONVERSI is_weekly ke integer (redundant but safe)**
-        $isWeekly = (int) $isWeekly;
-
         DB::transaction(function () use ($request, $token, $isWeekly) {
             Attendance::create([
                 'name' => $request->name,
@@ -76,16 +64,14 @@ class AttendanceController extends Controller
                 'signature' => $request->signature,
                 'unit_source' => $token->unit_source,
                 'is_backdate' => $token->is_backdate,
-                'is_weekly' => $isWeekly, // Gunakan nilai yang sudah di-cast
+                'is_weekly' => $isWeekly, // GUNAKAN VARIABEL YANG SUDAH DI-FORCE
                 'source_ip' => request()->ip(),
                 'user_agent' => request()->userAgent(),
             ]);
-
             $token->update([
                 'used_at' => now(),
             ]);
         });
-
         return response()->json([
             'success' => true,
         ]);

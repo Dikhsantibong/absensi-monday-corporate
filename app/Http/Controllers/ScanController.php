@@ -6,53 +6,65 @@ use App\Models\Attendance;
 use App\Models\AttendanceToken;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ScanController extends Controller
 {
-        public function form($token, Request $request)
-        {
-            // **AMBIL UNIT_SOURCE DARI URL**
-            $unitSource = $request->query('unit', 'mysql');
-            
-            // **AMBIL WEEKLY PARAMETER DARI URL DAN KONVERSI KE INTEGER**
-            $isWeekly = (int) $request->query('weekly', 0);
-            
-            // **FALLBACK: JIKA TOKEN MENGANDUNG KATA 'WEEKLY', PAKSA WEEKLY=1**
-            if (str_contains($token, 'WEEKLY')) {
-                $isWeekly = 1;
-            }
-            
-            // Validasi token sebelum menampilkan form
-            // Jika token tidak ada, buat otomatis (dari QR code web intranet)
-            $attendanceToken = AttendanceToken::where('token', $token)->first();
+    public function form($token, Request $request)
+    {
+        // 1. Ambil Parameter
+        $unitSource = $request->query('unit', 'mysql');
+        $isWeeklyInput = $request->query('weekly'); 
+        
+        // 2. Tentukan is_weekly (Default 0)
+        $isWeekly = 0;
+        
+        // Cek 1: Dari URL parameter
+        if ($isWeeklyInput == '1' || $isWeeklyInput == 'true') {
+            $isWeekly = 1;
+        }
 
-            if (!$attendanceToken) {
-                // Auto-create token jika belum ada (dari QR code web intranet)
-                $attendanceToken = AttendanceToken::create([
-                    'token' => $token,
-                    'expires_at' => now()->addDays(1), // Default expire 1 hari
-                    'unit_source' => $unitSource, // **SIMPAN UNIT_SOURCE DARI URL**
-                    'is_weekly' => $isWeekly, // **SIMPAN IS_WEEKLY DARI URL**
-                    'is_backdate' => false,
-                ]);
-            }
+        // Cek 2: FORCE dari Token (Paling Kuat)
+        if (str_contains($token, 'WEEKLY')) {
+            $isWeekly = 1;
+        }
 
-            // Cek hanya expiry
-            if ($attendanceToken->expires_at) {
-                $expiryDate = is_string($attendanceToken->expires_at) 
-                    ? \Carbon\Carbon::parse($attendanceToken->expires_at) 
-                    : $attendanceToken->expires_at;
-                
-                if ($expiryDate < now()) {
-                    abort(410, 'Token sudah expired pada ' . $expiryDate->format('d/m/Y H:i:s'));
-                }
-            }
+        // 3. Cek/Buat Token
+        $attendanceToken = AttendanceToken::where('token', $token)->first();
 
-            return view('scan', compact('token', 'unitSource', 'isWeekly'));
+        if (!$attendanceToken) {
+            // Auto-create token baru
+            $attendanceToken = AttendanceToken::create([
+                'token' => $token,
+                'expires_at' => now()->addDays(1),
+                'unit_source' => $unitSource,
+                'is_weekly' => $isWeekly,
+                'is_backdate' => 0,
+            ]);
+        } else {
+            // Update token existing jika perlu
+            if ($attendanceToken->is_weekly != $isWeekly) {
+                $attendanceToken->update(['is_weekly' => $isWeekly]);
+            }
+        }
+
+        // 4. Cek Expiry (Safe Parsing)
+        if ($attendanceToken->expires_at) {
+            $expiryDate = is_string($attendanceToken->expires_at) 
+                ? \Carbon\Carbon::parse($attendanceToken->expires_at) 
+                : $attendanceToken->expires_at;
+            
+            if ($expiryDate < now()) {
+                abort(410, 'Token sudah expired pada ' . $expiryDate->format('d/m/Y H:i:s'));
+            }
+        }
+
+        return view('scan', compact('token', 'unitSource', 'isWeekly'));
     }
 
     public function submit(Request $request, $token): \Illuminate\Http\JsonResponse
     {
+        // 1. Validasi Input
         try {
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
@@ -60,7 +72,8 @@ class ScanController extends Controller
                 'position' => 'required|string|max:255',
                 'signature' => 'required|string',
                 'unit_source' => 'required|string',
-                'is_weekly' => 'nullable|in:0,1', // UBAH: terima string 0 atau 1
+                // Terima string '0','1', atau integer
+                'is_weekly' => 'nullable', 
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -70,39 +83,51 @@ class ScanController extends Controller
             ], 422);
         }
 
-        // **AMBIL UNIT_SOURCE DAN IS_WEEKLY DENGAN FALLBACK YANG LEBIH KUAT**
-        $unitSource = $request->input('unit_source') ?? $request->query('unit') ?? 'mysql';
+        // 2. Logika Penentuan Nilai (PARANOID MODE)
         
-        // Cek 'is_weekly' dari input/query, jika tidak ada cek 'weekly' dari input/query
-        $rawWeekly = $request->input('is_weekly') ?? $request->query('is_weekly') ?? $request->input('weekly') ?? $request->query('weekly');
-        $isWeekly = (int) ($rawWeekly ?? 0); // Pastikan integer
+        // Ambil unit
+        $unitSource = $request->input('unit_source') ?? 'mysql';
 
-        // **FALLBACK: JIKA TOKEN MENGANDUNG KATA 'WEEKLY', PAKSA WEEKLY=1**
+        // Tentukan is_weekly (Default 0)
+        $isWeekly = 0;
+
+        // Cek input
+        $inputWeekly = $request->input('is_weekly');
+        if ($inputWeekly == '1' || $inputWeekly == 1 || $inputWeekly == 'true') {
+            $isWeekly = 1;
+        }
+
+        // FORCE CHECK: Jika token mengandung kata 'WEEKLY', PASTI 1
         if (str_contains($token, 'WEEKLY')) {
             $isWeekly = 1;
         }
 
-        // Cek token
+        // Debug Log
+        Log::info("Submitting Attendance for {$token}", [
+            'is_weekly_result' => $isWeekly,
+            'token_contains_weekly' => str_contains($token, 'WEEKLY')
+        ]);
+
+        // 3. Proses Database
         $attendanceToken = AttendanceToken::where('token', $token)->first();
 
         if (!$attendanceToken) {
-            // Auto-create token jika belum ada (dari QR code web intranet)
             $attendanceToken = AttendanceToken::create([
                 'token' => $token,
                 'expires_at' => now()->addDays(1),
                 'unit_source' => $unitSource,
-                'is_weekly' => $isWeekly, // Gunakan nilai yang sudah di-cast
-                'is_backdate' => false,
+                'is_weekly' => $isWeekly,
+                'is_backdate' => 0,
             ]);
         } else {
-             // **SYNC EXISTING TOKEN WITH REQUEST**
-             $attendanceToken->update([
-                 'is_weekly' => $isWeekly,
-                 'unit_source' => $unitSource,
-             ]);
+            // Update token existing dengan status yang benar
+            $attendanceToken->update([
+                'is_weekly' => $isWeekly,
+                'unit_source' => $unitSource
+            ]);
         }
 
-        // Cek hanya expiry
+        // Cek Expiry
         if ($attendanceToken->expires_at) {
             $expiryDate = is_string($attendanceToken->expires_at) 
                 ? \Carbon\Carbon::parse($attendanceToken->expires_at) 
@@ -112,19 +137,19 @@ class ScanController extends Controller
                 return response()->json([
                     'success' => false,
                     'error_type' => 'token_expired',
-                    'message' => 'Token sudah expired pada '.$expiryDate->format('d/m/Y H:i:s'),
+                    'message' => 'Token sudah expired pada ' . $expiryDate->format('d/m/Y H:i:s'),
                 ], 422);
             }
         }
 
-        // Cek duplikasi absensi untuk orang yang sama di hari yang sama **DI UNIT YANG SAMA**
+        // Cek Duplikasi
         $todayStart = now()->startOfDay();
         $todayEnd = now()->endOfDay();
         
         $existingAttendance = Attendance::where('name', $request->name)
             ->whereBetween('time', [$todayStart, $todayEnd])
             ->where('unit_source', $unitSource)
-            ->where('is_weekly', $isWeekly) // Gunakan nilai yang sudah di-cast
+            ->where('is_weekly', $isWeekly) // Cek duplikat juga berdasarkan weekly
             ->first();
 
         if ($existingAttendance) {
@@ -136,6 +161,7 @@ class ScanController extends Controller
             ], 422);
         }
 
+        // Simpan Absensi
         try {
             DB::transaction(function () use ($request, $token, $attendanceToken, $unitSource, $isWeekly) {
                 Attendance::create([
@@ -146,30 +172,23 @@ class ScanController extends Controller
                     'time' => now(),
                     'signature' => $request->signature,
                     'unit_source' => $unitSource,
-                    'is_weekly' => $isWeekly, // Gunakan nilai yang sudah di-cast
-                    'is_backdate' => $attendanceToken->is_backdate ?? false,
-                    'backdate_reason' => $attendanceToken->backdate_reason,
+                    // PASTIKAN NILAI INI MENGGUNAKAN VARIABEL YANG SUDAH DI-FORCE
+                    'is_weekly' => $isWeekly, 
+                    'is_backdate' => $attendanceToken->is_backdate ?? 0,
+                    'backdate_reason' => $attendanceToken->backdate_reason ?? null,
                     'source_ip' => request()->ip(),
                     'user_agent' => request()->userAgent(),
                 ]);
 
-                // Update used_at untuk tracking
                 $attendanceToken->update([
                     'used_at' => now(),
                 ]);
             });
 
-            // **FORCE WEEKLY IF TOKEN CONTAINS WEEKLY**
-            if (str_contains($token, 'WEEKLY')) {
-                $isWeekly = 1;
-            }
-
-            // Debug info in message
-            $debugInfo = " (Debug: is_weekly={$isWeekly}, token={$token})";
             $weeklyText = $isWeekly ? ' weekly' : '';
             return response()->json([
                 'success' => true,
-                'message' => 'Absensi' . $weeklyText . ' berhasil disimpan' . $debugInfo,
+                'message' => 'Absensi' . $weeklyText . ' berhasil disimpan',
             ]);
         } catch (\Exception $e) {
             return response()->json([
