@@ -9,46 +9,46 @@ use Illuminate\Support\Facades\DB;
 
 class ScanController extends Controller
 {
-    public function form($token, Request $request)
-    {
-        // **AMBIL UNIT_SOURCE DARI URL**
-        $unitSource = $request->query('unit', 'mysql');
-        
-        // **AMBIL WEEKLY PARAMETER DARI URL DAN KONVERSI KE INTEGER**
-        $isWeekly = (int) $request->query('weekly', 0);
-        
-        // **FALLBACK: JIKA TOKEN MENGANDUNG KATA 'WEEKLY', PAKSA WEEKLY=1**
-        if (str_contains($token, 'WEEKLY')) {
-            $isWeekly = 1;
-        }
-        
-        // Validasi token sebelum menampilkan form
-        // Jika token tidak ada, buat otomatis (dari QR code web intranet)
-        $attendanceToken = AttendanceToken::where('token', $token)->first();
-
-        if (!$attendanceToken) {
-            // Auto-create token jika belum ada (dari QR code web intranet)
-            $attendanceToken = AttendanceToken::create([
-                'token' => $token,
-                'expires_at' => now()->addDays(1), // Default expire 1 hari
-                'unit_source' => $unitSource, // **SIMPAN UNIT_SOURCE DARI URL**
-                'is_weekly' => $isWeekly, // **SIMPAN IS_WEEKLY DARI URL**
-                'is_backdate' => false,
-            ]);
-        }
-
-        // Cek hanya expiry
-        if ($attendanceToken->expires_at) {
-            $expiryDate = is_string($attendanceToken->expires_at) 
-                ? \Carbon\Carbon::parse($attendanceToken->expires_at) 
-                : $attendanceToken->expires_at;
+        public function form($token, Request $request)
+        {
+            // **AMBIL UNIT_SOURCE DARI URL**
+            $unitSource = $request->query('unit', 'mysql');
             
-            if ($expiryDate < now()) {
-                abort(410, 'Token sudah expired pada ' . $expiryDate->format('d/m/Y H:i:s'));
+            // **AMBIL WEEKLY PARAMETER DARI URL DAN KONVERSI KE INTEGER**
+            $isWeekly = (int) $request->query('weekly', 0);
+            
+            // **FALLBACK: JIKA TOKEN MENGANDUNG KATA 'WEEKLY', PAKSA WEEKLY=1**
+            if (str_contains($token, 'WEEKLY')) {
+                $isWeekly = 1;
             }
-        }
+            
+            // Validasi token sebelum menampilkan form
+            // Jika token tidak ada, buat otomatis (dari QR code web intranet)
+            $attendanceToken = AttendanceToken::where('token', $token)->first();
 
-        return view('scan', compact('token', 'unitSource', 'isWeekly'));
+            if (!$attendanceToken) {
+                // Auto-create token jika belum ada (dari QR code web intranet)
+                $attendanceToken = AttendanceToken::create([
+                    'token' => $token,
+                    'expires_at' => now()->addDays(1), // Default expire 1 hari
+                    'unit_source' => $unitSource, // **SIMPAN UNIT_SOURCE DARI URL**
+                    'is_weekly' => $isWeekly, // **SIMPAN IS_WEEKLY DARI URL**
+                    'is_backdate' => false,
+                ]);
+            }
+
+            // Cek hanya expiry
+            if ($attendanceToken->expires_at) {
+                $expiryDate = is_string($attendanceToken->expires_at) 
+                    ? \Carbon\Carbon::parse($attendanceToken->expires_at) 
+                    : $attendanceToken->expires_at;
+                
+                if ($expiryDate < now()) {
+                    abort(410, 'Token sudah expired pada ' . $expiryDate->format('d/m/Y H:i:s'));
+                }
+            }
+
+            return view('scan', compact('token', 'unitSource', 'isWeekly'));
     }
 
     public function submit(Request $request, $token): \Illuminate\Http\JsonResponse

@@ -46,8 +46,25 @@ class AttendanceController extends Controller
             ], 422);
         }
 
-        // **KONVERSI is_weekly ke integer**
-        $isWeekly = (int) $request->input('is_weekly', 0);
+        // **AMBIL UNIT_SOURCE DAN IS_WEEKLY DENGAN FALLBACK YANG LEBIH KUAT**
+        // Cek 'is_weekly' dari input/query, jika tidak ada cek 'weekly' dari input/query
+        $rawWeekly = $request->input('is_weekly') ?? $request->query('is_weekly') ?? $request->input('weekly') ?? $request->query('weekly');
+        $isWeekly = (int) ($rawWeekly ?? 0); // Pastikan integer
+
+        // **FALLBACK: JIKA TOKEN MENGANDUNG KATA 'WEEKLY', PAKSA WEEKLY=1**
+        if (str_contains($request->token, 'WEEKLY')) {
+            $isWeekly = 1;
+        }
+
+        // **SYNC TOKEN WITH REQUEST**
+        if ($token->is_weekly != $isWeekly) {
+            $token->update([
+                'is_weekly' => $isWeekly,
+            ]);
+        }
+        
+        // **KONVERSI is_weekly ke integer (redundant but safe)**
+        $isWeekly = (int) $isWeekly;
 
         DB::transaction(function () use ($request, $token, $isWeekly) {
             Attendance::create([
