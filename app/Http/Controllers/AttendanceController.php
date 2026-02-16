@@ -28,7 +28,7 @@ class AttendanceController extends Controller
             'name' => 'required|string|max:255',
             'division' => 'required|string|max:255',
             'position' => 'required|string|max:255',
-            'is_weekly' => 'required|boolean',
+            'is_weekly' => 'nullable|in:0,1', // UBAH: terima string 0 atau 1
             'signature' => 'required|string',
         ]);
 
@@ -46,7 +46,10 @@ class AttendanceController extends Controller
             ], 422);
         }
 
-        DB::transaction(function () use ($request, $token) {
+        // **KONVERSI is_weekly ke integer**
+        $isWeekly = (int) $request->input('is_weekly', 0);
+
+        DB::transaction(function () use ($request, $token, $isWeekly) {
             Attendance::create([
                 'name' => $request->name,
                 'division' => $request->division,
@@ -56,7 +59,7 @@ class AttendanceController extends Controller
                 'signature' => $request->signature,
                 'unit_source' => $token->unit_source,
                 'is_backdate' => $token->is_backdate,
-                'is_weekly' => $request->is_weekly,
+                'is_weekly' => $isWeekly, // Gunakan nilai yang sudah di-cast
                 'source_ip' => request()->ip(),
                 'user_agent' => request()->userAgent(),
             ]);

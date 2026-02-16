@@ -9,18 +9,21 @@ class AttendanceToken extends Model
     protected $table = 'attendance_tokens';
 
     protected $fillable = [
-        'token',
-        'expires_at',
-        'used_at',
-        'user_id',
-        'unit_source',
-        'is_weekly',
-        'backdate_data',
-        'is_backdate'
+    'token',
+    'user_id',
+    'expires_at',
+    'used_at',
+    'unit_source',
+    'is_weekly',  // Pastikan ada
+    'is_backdate',
+    'backdate_data',
     ];
 
-    protected $dates = [
-        'expires_at',
-        'used_at'
+    protected $casts = [
+    'expires_at' => 'datetime',
+    'used_at' => 'datetime',
+    'is_backdate' => 'boolean',
+    'is_weekly' => 'integer', // TAMBAHKAN cast ke integer
     ];
+
 }

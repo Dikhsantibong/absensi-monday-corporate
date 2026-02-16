@@ -48,8 +48,8 @@ class ScanController extends Controller
                 'division' => 'required|string|max:255',
                 'position' => 'required|string|max:255',
                 'signature' => 'required|string',
-                'unit_source' => 'required|string', // **VALIDASI UNIT_SOURCE**
-                'is_weekly' => 'nullable|boolean', // **VALIDASI IS_WEEKLY**
+                'unit_source' => 'required|string',
+                'is_weekly' => 'nullable|in:0,1', // UBAH: terima string 0 atau 1
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -59,9 +59,9 @@ class ScanController extends Controller
             ], 422);
         }
 
-        // **AMBIL UNIT_SOURCE DAN IS_WEEKLY DARI REQUEST**
+        // **KONVERSI is_weekly ke integer**
         $unitSource = $request->input('unit_source');
-        $isWeekly = $request->input('is_weekly', 0);
+        $isWeekly = (int) $request->input('is_weekly', 0); // PENTING: Cast ke integer
 
         // Cek token
         $attendanceToken = AttendanceToken::where('token', $token)->first();
@@ -71,8 +71,8 @@ class ScanController extends Controller
             $attendanceToken = AttendanceToken::create([
                 'token' => $token,
                 'expires_at' => now()->addDays(1),
-                'unit_source' => $unitSource, // **GUNAKAN UNIT_SOURCE DARI REQUEST**
-                'is_weekly' => $isWeekly, // **GUNAKAN IS_WEEKLY DARI REQUEST**
+                'unit_source' => $unitSource,
+                'is_weekly' => $isWeekly, // Gunakan nilai yang sudah di-cast
                 'is_backdate' => false,
             ]);
         }
@@ -92,8 +92,8 @@ class ScanController extends Controller
         
         $existingAttendance = Attendance::where('name', $request->name)
             ->whereBetween('time', [$todayStart, $todayEnd])
-            ->where('unit_source', $unitSource) // **FILTER BY UNIT_SOURCE**
-            ->where('is_weekly', $isWeekly) // **FILTER BY IS_WEEKLY**
+            ->where('unit_source', $unitSource)
+            ->where('is_weekly', $isWeekly) // Gunakan nilai yang sudah di-cast
             ->first();
 
         if ($existingAttendance) {
@@ -114,8 +114,8 @@ class ScanController extends Controller
                     'token' => $token,
                     'time' => now(),
                     'signature' => $request->signature,
-                    'unit_source' => $unitSource, // **SIMPAN UNIT_SOURCE**
-                    'is_weekly' => $isWeekly, // **SIMPAN IS_WEEKLY**
+                    'unit_source' => $unitSource,
+                    'is_weekly' => $isWeekly, // Gunakan nilai yang sudah di-cast
                     'is_backdate' => $attendanceToken->is_backdate ?? false,
                     'backdate_reason' => $attendanceToken->backdate_data,
                     'source_ip' => request()->ip(),
