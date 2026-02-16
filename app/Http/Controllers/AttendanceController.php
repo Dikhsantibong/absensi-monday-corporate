@@ -28,6 +28,7 @@ class AttendanceController extends Controller
             'name' => 'required|string|max:255',
             'division' => 'required|string|max:255',
             'position' => 'required|string|max:255',
+            'is_weekly' => 'required|boolean',
             'signature' => 'required|string',
         ]);
 
@@ -55,6 +56,7 @@ class AttendanceController extends Controller
                 'signature' => $request->signature,
                 'unit_source' => $token->unit_source,
                 'is_backdate' => $token->is_backdate,
+                'is_weekly' => $request->is_weekly,
                 'source_ip' => request()->ip(),
                 'user_agent' => request()->userAgent(),
             ]);
