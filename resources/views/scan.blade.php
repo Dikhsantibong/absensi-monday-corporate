@@ -24,6 +24,7 @@
             <input type="hidden" name="token" value="{{ $token }}">
             {{-- **TAMBAHKAN HIDDEN INPUT UNIT_SOURCE** --}}
             <input type="hidden" name="unit_source" value="{{ $unitSource }}">
+            <input type="hidden" name="is_weekly" value="{{ $isWeekly }}">
             <input type="hidden" name="signature" id="signature-data">
 
             <div>

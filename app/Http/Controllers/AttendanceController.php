@@ -97,6 +97,11 @@ class AttendanceController extends Controller
             $query->where('unit_source', $request->unit_source);
         }
 
+        // **FILTER BY IS_WEEKLY**
+        if ($request->has('is_weekly')) {
+            $query->where('is_weekly', $request->is_weekly);
+        }
+
         // Filter by name (search)
         if ($request->has('name')) {
             $query->where('name', 'like', '%'.$request->name.'%');

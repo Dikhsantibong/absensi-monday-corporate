@@ -14,6 +14,7 @@ class AttendanceToken extends Model
         'used_at',
         'user_id',
         'unit_source',
+        'is_weekly',
         'backdate_data',
         'is_backdate'
     ];

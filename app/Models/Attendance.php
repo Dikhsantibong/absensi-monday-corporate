@@ -16,6 +16,7 @@ class Attendance extends Model
         'time',
         'signature',
         'unit_source',
+        'is_weekly',
         'is_backdate',
         'backdate_reason',
         'source_ip',
