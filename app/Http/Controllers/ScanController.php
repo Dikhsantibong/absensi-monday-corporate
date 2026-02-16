@@ -14,8 +14,8 @@ class ScanController extends Controller
         // **AMBIL UNIT_SOURCE DARI URL**
         $unitSource = $request->query('unit', 'mysql');
         
-        // **AMBIL WEEKLY PARAMETER DARI URL**
-        $isWeekly = $request->query('weekly', 0);
+        // **AMBIL WEEKLY PARAMETER DARI URL DAN KONVERSI KE INTEGER**
+        $isWeekly = (int) $request->query('weekly', 0);
         
         // Validasi token sebelum menampilkan form
         // Jika token tidak ada, buat otomatis (dari QR code web intranet)
